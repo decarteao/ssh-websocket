@@ -14,7 +14,7 @@ echo "$USERNAME:$PASSWORD" | sudo chpasswd
 echo "Usuário '$USERNAME' criado sem acesso ao shell."
 
 # instalar o sshwebsocket
-wget -O sshwebsocket https://slslsls/sshwebsocket_80_ubuntu
+wget -O sshwebsocket https://github.com/decarteao/ssh-websocket/raw/refs/heads/master/bin/sshwebsocket_ubuntu
 chmod +x sshwebsocket
 
 # instalar o service
