@@ -34,8 +34,32 @@ Restart=always
 WantedBy=multi-user.target
 END
 
-systemctl enable sshwebsocket
+# instalar o badvpn-udp
+wget -O badvpn_udp https://github.com/decarteao/ssh-websocket/raw/refs/heads/master/bin/badvpn_udp
+chmod +x badvpn_udp
+
+# instalar o service
+cat > /etc/systemd/system/badvpn.service <<-END
+[Unit]
+Description=BadVPN
+After=network.target
+
+[Service]
+ExecStart=/root/badvpn_udp
+WorkingDirectory=/root/
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+END
+
+# iniciar os services
+systemctl daemon-reload
+
 systemctl restart sshwebsocket
+systemctl restart badvpn
 
 # reinicializar
 reboot

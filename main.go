@@ -109,7 +109,7 @@ func client_handler(w http.ResponseWriter, c *http.Request) {
 }
 
 func main() {
-	fmt.Println("[!] Kaiho WebSocket iniciado")
+	fmt.Println("[!] Sung WebSocket iniciado")
 
 	http.HandleFunc("/", client_handler)
 	err := http.ListenAndServe(fmt.Sprintf("%s:%d", listen_ip, listen_port), nil)
