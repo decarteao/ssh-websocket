@@ -58,6 +58,9 @@ END
 # iniciar os services
 systemctl daemon-reload
 
+systemctl enable sshwebsocket
+systemctl enable badvpn
+
 systemctl restart sshwebsocket
 systemctl restart badvpn
 
