@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"log"
@@ -103,17 +104,19 @@ func client_handler(w http.ResponseWriter, c *http.Request) {
 		return
 	}
 
-	defer conn.Close() // fechar conexao
+	// rodar o handler em uma goroutine
+	go func(conn net.Conn, rw *bufio.ReadWriter) {
+		defer conn.Close()
 
-	// fazer o handshake
-	fmt.Fprint(rw, "HTTP/1.1 101 Ergam-se\r\n")
-	fmt.Fprint(rw, "Upgrade: websocket\r\n")
-	fmt.Fprint(rw, "Connection: Upgrade\r\n\r\n")
-	rw.Flush() // enviar tudo acima
+		// fazer o handshake
+		fmt.Fprint(rw, "HTTP/1.1 101 Ergam-se\r\n")
+		fmt.Fprint(rw, "Upgrade: websocket\r\n")
+		fmt.Fprint(rw, "Connection: Upgrade\r\n\r\n")
+		rw.Flush()
 
-	// criar o fluxo de dados com o ssh
-	log.Println("[!] Nova conexao VPN")
-	connect2ssh(conn)
+		log.Println("[!] Nova conexao VPN")
+		connect2ssh(conn)
+	}(conn, rw)
 }
 
 func main() {
@@ -125,7 +128,4 @@ func main() {
 	}
 	log.Println("[!] Sung WebSocket iniciado")
 	log.Fatal(http.Serve(ln, nil))
-
-	// err := http.ListenAndServe(fmt.Sprintf("%s:%d", listen_ip, listen_port), nil)
-	// log.Printf("WS fechado: %s\n", err)
 }
