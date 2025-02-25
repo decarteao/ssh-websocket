@@ -3,15 +3,18 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
+	"strings"
+	"sync/atomic"
 	"time"
 )
 
 var current_connections int64 = 0 // aqui fica as conexoes
 
 const (
-	max_connections = 5000
+	max_connections = 15000
 	listen_ip       = "0.0.0.0"
 	listen_port     = 80
 	buffer_size     = 2048
@@ -20,15 +23,15 @@ const (
 
 func connect2ssh(ws net.Conn) {
 	// Conectar ao servidor TCP
-	conn, err := net.Dial("tcp", "localhost:22")
+	conn, err := net.DialTimeout("tcp", "localhost:22", timeout_secs*time.Second)
 	if err != nil {
-		fmt.Println("Erro ao se conectar no ssh")
+		log.Println("Erro ao se conectar no ssh")
 		ws.Write([]byte("Erro ao se conectar no ssh"))
 		return
 	}
-	defer func() {
-		conn.Close()
-	}()
+
+	// fechar conexao dps que tudo se encerrar
+	defer conn.Close()
 
 	// Canal para enviar dados do SSH pro WebSocket
 	go func() {
@@ -38,12 +41,13 @@ func connect2ssh(ws net.Conn) {
 			conn.SetDeadline(time.Now().Add(timeout_secs * time.Second))
 			n, err := conn.Read(buffer)
 			if err != nil && err == io.EOF {
-				fmt.Println("SSH Fechado")
+				log.Println("SSH Fechado")
 				ws.Write([]byte(err.Error()))
 				break
 			}
-
-			ws.Write(buffer[:n])
+			if err == nil {
+				ws.Write(buffer[:n])
+			}
 		}
 	}()
 
@@ -55,11 +59,11 @@ func connect2ssh(ws net.Conn) {
 
 		if err != nil {
 			if err != io.EOF {
-				fmt.Printf("Erro depois da conexao: %s\n\n", err)
+				log.Printf("Erro depois da conexao: %s\n\n", err)
 				continue
 			} else {
-				current_connections-- // diminuir na conexao
-				fmt.Printf("Fechou conexão: %s\n\n", err)
+				atomic.AddInt64(&current_connections, -1) // diminuir na conexao
+				log.Printf("Fechou conexão: %s\n\n", err)
 				break
 			}
 		}
@@ -70,15 +74,15 @@ func connect2ssh(ws net.Conn) {
 }
 
 func client_handler(w http.ResponseWriter, c *http.Request) {
-	// verificar se o ip ta vir de angola
-	if c.Header.Get("Cf-Ipcountry") != "AO" {
-		fmt.Println("IP desconhecido!")
+	// verificar se excedeu o maximo de conexao aceite
+	if atomic.LoadInt64(&current_connections) >= max_connections {
+		http.Error(w, "Excedeu o maximo de conexao", 403)
 		return
 	}
 
-	// verificar se excedeu o maximo de conexao aceite
-	if current_connections >= max_connections {
-		http.Error(w, "Excedeu o maximo de conexao", 403)
+	// validar payload antes de iniciar sessao
+	if strings.ToLower(c.Header.Get("Upgrade")) != "websocket" {
+		http.Error(w, "Payload invalida", 503)
 		return
 	}
 
@@ -97,22 +101,24 @@ func client_handler(w http.ResponseWriter, c *http.Request) {
 	defer conn.Close() // fechar conexao
 
 	// afirmar que a conexao esta sendo bem feita
-	current_connections++
+	atomic.AddInt64(&current_connections, 1)
 
 	// fazer o handshake
-	fmt.Fprintf(rw, "HTTP/1.1 101 :) Ergam-se\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n")
+	fmt.Fprint(rw, "HTTP/1.1 101 Ergam-se\r\n")
+	fmt.Fprint(rw, "Upgrade: websocket\r\n")
+	fmt.Fprint(rw, "Connection: Upgrade\r\n\r\n")
 	rw.Flush() // enviar tudo acima
 
 	// criar o fluxo de dados com o ssh
-	fmt.Println("[!] Nova conexao VPN")
+	log.Println("[!] Nova conexao VPN")
 	connect2ssh(conn)
 }
 
 func main() {
-	fmt.Println("[!] Sung WebSocket iniciado")
+	log.Println("[!] Sung WebSocket iniciado")
 
 	http.HandleFunc("/", client_handler)
 	err := http.ListenAndServe(fmt.Sprintf("%s:%d", listen_ip, listen_port), nil)
 
-	fmt.Printf("WS fechado: %s\n", err)
+	log.Printf("WS fechado: %s\n", err)
 }
