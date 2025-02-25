@@ -10,7 +10,7 @@ from requests import get, post
 from time import sleep
 
 URL = 'https://painel.mukasalva.online/api/users/update'
-COMMAND = "ss -t | grep -c '127.0.0.1:ssh'"
+COMMAND = "ps -u sung | wc -l"#"ss -t | grep -c '127.0.0.1:ssh'"
 
 def get_ip_publico():
     try:

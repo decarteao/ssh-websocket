@@ -33,6 +33,12 @@ func connect2ssh(ws net.Conn) {
 	// fechar conexao dps que tudo se encerrar
 	defer conn.Close()
 
+	// afirmar que a conexao esta sendo bem feita
+	atomic.AddInt64(&current_connections, 1)
+
+	// diminuir na conexao ao fechar
+	defer atomic.AddInt64(&current_connections, -1)
+
 	// Canal para enviar dados do SSH pro WebSocket
 	go func() {
 		// a cada iteracao
@@ -62,7 +68,6 @@ func connect2ssh(ws net.Conn) {
 				log.Printf("Erro depois da conexao: %s\n\n", err)
 				continue
 			} else {
-				atomic.AddInt64(&current_connections, -1) // diminuir na conexao
 				log.Printf("Fechou conexão: %s\n\n", err)
 				break
 			}
@@ -100,9 +105,6 @@ func client_handler(w http.ResponseWriter, c *http.Request) {
 
 	defer conn.Close() // fechar conexao
 
-	// afirmar que a conexao esta sendo bem feita
-	atomic.AddInt64(&current_connections, 1)
-
 	// fazer o handshake
 	fmt.Fprint(rw, "HTTP/1.1 101 Ergam-se\r\n")
 	fmt.Fprint(rw, "Upgrade: websocket\r\n")
@@ -115,10 +117,15 @@ func client_handler(w http.ResponseWriter, c *http.Request) {
 }
 
 func main() {
-	log.Println("[!] Sung WebSocket iniciado")
-
 	http.HandleFunc("/", client_handler)
-	err := http.ListenAndServe(fmt.Sprintf("%s:%d", listen_ip, listen_port), nil)
 
-	log.Printf("WS fechado: %s\n", err)
+	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", listen_ip, listen_port))
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("[!] Sung WebSocket iniciado")
+	log.Fatal(http.Serve(ln, nil))
+
+	// err := http.ListenAndServe(fmt.Sprintf("%s:%d", listen_ip, listen_port), nil)
+	// log.Printf("WS fechado: %s\n", err)
 }
