@@ -1,5 +1,60 @@
 #!/bin/bash
 apt update -y
+apt install python3-pip -y
+pip3 install requests
+
+# criar o counter de usuarios
+cat > /root/sshcounter.py <<-END
+from subprocess import run as Popen
+from requests import get, post
+from time import sleep
+
+URL = 'https://painel.mukasalva.online/api/users/update'
+COMMAND = "ss -t | grep -c '127.0.0.1:ssh'"
+
+def get_ip_publico():
+    try:
+        resposta = get("https://api64.ipify.org?format=json", timeout=5)
+        if resposta.status_code == 200:
+            return resposta.json().get("ip")
+    except Exception as e:
+        print(f"Erro ao obter IP público: {e}")
+    return None
+
+IP = get_ip_publico()
+
+while IP != None:
+    r = Popen(COMMAND, shell=True, text=True, capture_output=True)
+    r = r.stdout.strip()
+    try:
+        users = int(r)
+    except:
+        users = 0
+    
+    # enviar pro meu servidor
+    try:
+        post(URL, data={'ip': IP, 'usuarios': users})
+    except:
+        pass
+    
+    sleep(5)
+END
+
+cat > /etc/systemd/system/sshcounter.service <<-END
+[Unit]
+Description=SSHCounter
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /root/sshcounter.py
+WorkingDirectory=/root/
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+END
 
 # criar usuário sem acesso ao shell
 USERNAME="sung"
@@ -94,13 +149,16 @@ systemctl daemon-reload
 
 systemctl enable sshwebsocket
 systemctl enable badvpn
+systemctl enable sshcounter
 
 systemctl restart sshwebsocket
 systemctl restart badvpn
 systemctl restart sshd
+systemctl restart sshcounter
 
 systemctl status sshwebsocket
 systemctl status badvpn
+systemctl status sshcounter
 
 # reinicializar
 reboot
