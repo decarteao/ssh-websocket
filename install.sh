@@ -10,7 +10,7 @@ from requests import get, post
 from time import sleep
 
 URL = 'https://painel.mukasalva.online/api/users/update'
-COMMAND = "ps -u sung | wc -l"#"ss -t | grep -c '127.0.0.1:ssh'"
+COMMAND = "ps -u sung | wc -l"#"loginctl list-sessions | grep 'sung' | wc -l"#"ss -t | grep -c '127.0.0.1:ssh'"
 
 def get_ip_publico():
     try:
@@ -82,7 +82,7 @@ Description=SSHWebsocket
 After=network.target
 
 [Service]
-ExecStart=/root/sshwebsocket
+ExecStart=/root/sshwebsocket 200
 WorkingDirectory=/root/
 StandardOutput=inherit
 StandardError=inherit

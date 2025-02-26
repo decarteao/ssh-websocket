@@ -7,19 +7,21 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
 )
 
 var current_connections int64 = 0 // aqui fica as conexoes
+var max_connections int64 = 50
 
 const (
-	max_connections = 15000
-	listen_ip       = "0.0.0.0"
-	listen_port     = 80
-	buffer_size     = 2048
-	timeout_secs    = 60
+	listen_ip    = "0.0.0.0"
+	listen_port  = 80
+	buffer_size  = 2048
+	timeout_secs = 60
 )
 
 func connect2ssh(ws net.Conn) {
@@ -120,6 +122,15 @@ func client_handler(w http.ResponseWriter, c *http.Request) {
 }
 
 func main() {
+	if len(os.Args) > 1 {
+		val, err := strconv.ParseInt(os.Args[1], 10, 64)
+		if err == nil {
+			max_connections = val
+		}
+	}
+
+	log.Printf("[!] MaxConnections: %d\n", max_connections)
+
 	http.HandleFunc("/", client_handler)
 
 	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", listen_ip, listen_port))
