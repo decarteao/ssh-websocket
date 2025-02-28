@@ -120,6 +120,11 @@ func client_handler(w http.ResponseWriter, c *http.Request) {
 		connect2ssh(conn)
 	}(conn, rw)
 }
+func client_users(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(fmt.Sprintf(`{"data": "%d/%d"}`, current_connections, max_connections)))
+}
 
 func main() {
 	if len(os.Args) > 1 {
@@ -132,6 +137,7 @@ func main() {
 	log.Printf("[!] MaxConnections: %d\n", max_connections)
 
 	http.HandleFunc("/", client_handler)
+	http.HandleFunc("/users", client_users)
 
 	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", listen_ip, listen_port))
 	if err != nil {
