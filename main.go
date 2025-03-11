@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"log"
@@ -15,13 +14,20 @@ import (
 )
 
 var current_connections int64 = 0 // aqui fica as conexoes
-var max_connections int64 = 50
+var max_connections int64 = 800
 
 const (
-	listen_ip    = "0.0.0.0"
-	listen_port  = 80
-	buffer_size  = 2048
-	timeout_secs = 60
+	// configs gerais
+	listen_ip         = "0.0.0.0"
+	listen_port       = 80
+	listen_ip_socks   = "127.0.0.1"
+	listen_port_socks = 8999
+	buffer_size       = 16384
+	timeout_secs      = 30
+
+	// autenticacao
+	user     = "sung"
+	password = "123.456"
 )
 
 func connect2ssh(ws net.Conn) {
@@ -81,44 +87,44 @@ func connect2ssh(ws net.Conn) {
 	}
 }
 
-func client_handler(w http.ResponseWriter, c *http.Request) {
-	// verificar se excedeu o maximo de conexao aceite
+func client_handler(conn net.Conn) {
 	if atomic.LoadInt64(&current_connections) >= max_connections {
-		http.Error(w, "Excedeu o maximo de conexao", 403)
+		conn.Write([]byte("HTTP/1.1 403 Servidor lotado\r\nServer: KaihoVPN\r\nMime-Version: 1.0\r\nContent-Type: text/html\r\n\r\n"))
+		conn.Close()
 		return
 	}
 
-	// validar payload antes de iniciar sessao
-	if strings.ToLower(c.Header.Get("Upgrade")) != "websocket" {
-		http.Error(w, "Payload invalida", 503)
+	// ler payload
+	payload := make([]byte, 512)
+	conn.Read(payload)
+
+	// log.Println(string(payload))
+	if strings.Contains(string(payload), "GET /users HTTP/1.1") {
+		// ver o total de users
+		status := fmt.Sprintf(`{"data": "%d/%d"}`, atomic.LoadInt64(&current_connections), max_connections)
+		conn.Write([]byte("HTTP/1.1 200 OK\r\nServer: KaihoVPN\r\nContent-Type: application/json\r\nContent-Length: " + fmt.Sprintf("%d", len([]byte(status))) + "\r\n\r\n" + status))
+		conn.Close()
+		return
+	} else if !strings.Contains(strings.ToLower(string(payload)), "upgrade: websocket") {
+		// validar payload para evitar spammers
+		conn.Write([]byte("HTTP/1.1 403 Payload invalida\r\nServer: KaihoVPN\r\nMime-Version: 1.0\r\nContent-Type: text/html\r\n\r\nPayload Invalida :)"))
+		conn.Close()
+		return
+	} else if !strings.Contains(strings.ToLower(string(payload)), fmt.Sprintf("\r\nuser: %s\r\n", user)) || !strings.Contains(strings.ToLower(string(payload)), fmt.Sprintf("\r\npassword: %s\r\n", password)) {
+		// autenticar pela payload
+		conn.Write([]byte("HTTP/1.1 403 Credenciais incorrectas\r\nServer: KaihoVPN\r\nMime-Version: 1.0\r\nContent-Type: text/html\r\n\r\nPayload Invalida :)"))
+		conn.Close()
 		return
 	}
 
-	hj, ok := w.(http.Hijacker)
-	if !ok {
-		http.Error(w, "Websocket nao suportado", 512)
-		return
-	}
+	// mandar o handshake
+	conn.Write([]byte("HTTP/1.1 101 Ergam-se :)\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n"))
 
-	conn, rw, err := hj.Hijack()
-	if err != nil {
-		http.Error(w, "Erro ao ter controle total do fluxo TCP", 513)
-		return
-	}
+	// iniciar o fluxo
+	log.Println("\n{!} Nova conexão autenticada:", conn.RemoteAddr())
 
-	// rodar o handler em uma goroutine
-	go func(conn net.Conn, rw *bufio.ReadWriter) {
-		defer conn.Close()
-
-		// fazer o handshake
-		fmt.Fprint(rw, "HTTP/1.1 101 Ergam-se\r\n")
-		fmt.Fprint(rw, "Upgrade: websocket\r\n")
-		fmt.Fprint(rw, "Connection: Upgrade\r\n\r\n")
-		rw.Flush()
-
-		log.Println("[!] Nova conexao VPN")
-		connect2ssh(conn)
-	}(conn, rw)
+	// rodar o sub handler em uma goroutine
+	go connect2ssh(conn)
 }
 func client_users(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -136,13 +142,17 @@ func main() {
 
 	log.Printf("[!] MaxConnections: %d\n", max_connections)
 
-	http.HandleFunc("/", client_handler)
-	http.HandleFunc("/users", client_users)
-
 	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", listen_ip, listen_port))
 	if err != nil {
 		log.Fatal(err)
 	}
 	log.Println("[!] Sung WebSocket iniciado")
-	log.Fatal(http.Serve(ln, nil))
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			log.Println("erro no servidor:", err.Error())
+		}
+
+		go client_handler(conn)
+	}
 }
