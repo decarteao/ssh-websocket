@@ -82,7 +82,7 @@ Description=SSHWebsocket
 After=network.target
 
 [Service]
-ExecStart=/root/sshwebsocket 200
+ExecStart=/root/sshwebsocket 1200
 WorkingDirectory=/root/
 StandardOutput=inherit
 StandardError=inherit
