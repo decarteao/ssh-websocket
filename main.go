@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -29,6 +31,30 @@ const (
 	user     = "sung"
 	password = "123.456"
 )
+
+// VerificadorIntegridade estrutura para armazenar o hash
+type VerificadorIntegridade struct {
+	sha256Bytes []byte
+}
+
+// NovoVerificador cria uma instância do verificador
+func NovoVerificador() *VerificadorIntegridade {
+	sha256Hex := "37:86:EF:F9:88:E1:B8:F8:6D:4C:9B:0C:1C:E1:2C:40:F4:CF:7A:39:5C:2E:D7:52:EF:89:D5:CA:12:FC:70:26"
+	sha256Hex = strings.ReplaceAll(sha256Hex, ":", "") // Remove os ":"
+
+	sha256Bytes, err := hex.DecodeString(sha256Hex)
+	if err != nil {
+		panic(err) // Se der erro na conversão, para a execução
+	}
+
+	return &VerificadorIntegridade{sha256Bytes: sha256Bytes}
+}
+
+// VerificarIntegridade verifica se o código fornecido bate com o SHA-256 base64
+func (vi *VerificadorIntegridade) VerificarIntegridade(payload string) bool {
+	expected := base64.StdEncoding.EncodeToString(vi.sha256Bytes)
+	return strings.Contains(payload, ": "+expected)
+}
 
 func connect2ssh(ws net.Conn) {
 	// Conectar ao servidor TCP
@@ -98,6 +124,8 @@ func client_handler(conn net.Conn) {
 	payload := make([]byte, 512)
 	conn.Read(payload)
 
+	vi := NovoVerificador()
+
 	// log.Println(string(payload))
 	if strings.Contains(string(payload), "GET /users HTTP/1.1") {
 		// ver o total de users
@@ -110,7 +138,7 @@ func client_handler(conn net.Conn) {
 		conn.Write([]byte("HTTP/1.1 403 Payload invalida\r\nServer: KaihoVPN\r\nMime-Version: 1.0\r\nContent-Type: text/html\r\n\r\nPayload Invalida :)"))
 		conn.Close()
 		return
-	} else if !strings.Contains(strings.ToLower(string(payload)), fmt.Sprintf("\r\nuser: %s\r\n", user)) || !strings.Contains(strings.ToLower(string(payload)), fmt.Sprintf("\r\npassword: %s\r\n", password)) {
+	} else if !strings.Contains(strings.ToLower(string(payload)), fmt.Sprintf("\r\nuser: %s\r\n", user)) || !strings.Contains(strings.ToLower(string(payload)), fmt.Sprintf("\r\npassword: %s\r\n", password)) || !vi.VerificarIntegridade(string(payload)) {
 		// autenticar pela payload
 		conn.Write([]byte("HTTP/1.1 403 Credenciais incorrectas\r\nServer: KaihoVPN\r\nMime-Version: 1.0\r\nContent-Type: text/html\r\n\r\nPayload Invalida :)"))
 		conn.Close()
@@ -118,6 +146,7 @@ func client_handler(conn net.Conn) {
 	}
 
 	payload = nil // limpar
+	vi = nil      // limpar tbm kk
 
 	// mandar o handshake
 	conn.Write([]byte("HTTP/1.1 101 Ergam-se das Sombras :)\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n"))
