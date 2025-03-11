@@ -117,8 +117,10 @@ func client_handler(conn net.Conn) {
 		return
 	}
 
+	payload = nil // limpar
+
 	// mandar o handshake
-	conn.Write([]byte("HTTP/1.1 101 Ergam-se :)\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n"))
+	conn.Write([]byte("HTTP/1.1 101 Ergam-se das Sombras :)\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n"))
 
 	// iniciar o fluxo
 	log.Println("\n{!} Nova conexão autenticada:", conn.RemoteAddr())
@@ -151,6 +153,7 @@ func main() {
 		conn, err := ln.Accept()
 		if err != nil {
 			log.Println("erro no servidor:", err.Error())
+			continue
 		}
 
 		go client_handler(conn)

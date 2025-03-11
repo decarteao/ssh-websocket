@@ -60,14 +60,14 @@ END
 USERNAME="sung"
 PASSWORD="123.456"
 
-sudo useradd -m -s /usr/sbin/nologin $USERNAME
+useradd -m -s /usr/sbin/nologin $USERNAME
 
 # definir senha do usuário
-echo "$USERNAME:$PASSWORD" | sudo chpasswd
+echo "$USERNAME:$PASSWORD" | chpasswd
 
 # ignorar
-#sudo useradd -m -s /usr/sbin/nologin sung
-#echo "sung:123.456" | sudo chpasswd
+#useradd -m -s /usr/sbin/nologin sung
+#echo "sung:123.456" | chpasswd
 
 echo "Usuário '$USERNAME' criado sem acesso ao shell."
 
